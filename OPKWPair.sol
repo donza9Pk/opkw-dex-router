@@ -119,7 +119,12 @@ contract OPKWPair {
         _update(balance0, balance1, _reserve0, _reserve1);
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
-    function skim(address to) external lock { address _token0 = token0; address _token1 = token1; _safeTransfer(_token0, to, IERC20(_token0).balanceOf(address(this)) - reserve0); _safeTransfer(_token1, to, IERC20(_token1).balanceOf(address(this)) - reserve1); }
+    function skim(address to) external lock {
+        require(msg.sender == factory || msg.sender == IOPKWFactory(factory).feeToSetter(), "FORBIDDEN");
+        address _token0 = token0; address _token1 = token1;
+        _safeTransfer(_token0, to, IERC20(_token0).balanceOf(address(this)) - reserve0);
+        _safeTransfer(_token1, to, IERC20(_token1).balanceOf(address(this)) - reserve1);
+    }
     function sync() external lock { _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)), reserve0, reserve1); }
     function transfer(address dst, uint wad) public returns (bool) { return transferFrom(msg.sender, dst, wad); }
     function transferFrom(address src, address dst, uint wad) public returns (bool) {
@@ -131,5 +136,5 @@ contract OPKWPair {
     function _min(uint a, uint b) private pure returns (uint) { return a < b ? a : b; }
 }
 interface IERC20 { function balanceOf(address o) external view returns (uint); }
-interface IOPKWFactory { function feeTo() external view returns (address); }
+interface IOPKWFactory { function feeTo() external view returns (address); function feeToSetter() external view returns (address); }
 interface IFlashCallee { function flashCall(address sender, uint amount0, uint amount1, bytes calldata data) external; }

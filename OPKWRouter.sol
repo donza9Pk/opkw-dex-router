@@ -74,7 +74,10 @@ contract OPKWRouter {
         WOPKW(WETH).deposit{value: amountETH}();
         require(WOPKW(WETH).transfer(pair, amountETH), "W_FAIL");
         liquidity = OPKWPair(pair).mint(to);
-        if (msg.value > amountETH) payable(msg.sender).transfer(msg.value - amountETH);
+        if (msg.value > amountETH) {
+            (bool ok, ) = payable(msg.sender).call{value: msg.value - amountETH}("");
+            require(ok, "ETH_REFUND_FAIL");
+        }
     }
     function removeLiquidity(address tokenA, address tokenB, uint liquidity, uint amountAMin, uint amountBMin, address to, uint deadline) public ensure(deadline) returns (uint amountA, uint amountB) {
         address pair = OPKWFactory(factory).getPair(tokenA, tokenB);
@@ -82,6 +85,13 @@ contract OPKWRouter {
         (uint balance0, uint balance1) = (IERC20(tokenA).balanceOf(pair), IERC20(tokenB).balanceOf(pair));
         (amountA, amountB) = OPKWPair(pair).burn(to);
         require(amountA >= amountAMin && amountB >= amountBMin, "INSUFF");
+    }
+    function removeLiquidityETH(address token, uint liquidity, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external ensure(deadline) returns (uint amountToken, uint amountETH) {
+        (amountToken, amountETH) = removeLiquidity(token, WETH, liquidity, amountTokenMin, amountETHMin, address(this), deadline);
+        _safeTransfer(token, to, amountToken);
+        WOPKW(WETH).withdraw(amountETH);
+        (bool ok, ) = payable(to).call{value: amountETH}("");
+        require(ok, "ETH_FAIL");
     }
     function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external ensure(deadline) returns (uint[] memory amounts) {
         amounts = getAmountsOut(amountIn, path);
@@ -104,6 +114,7 @@ contract OPKWRouter {
         _safeTransferFrom(path[0], msg.sender, OPKWFactory(factory).getPair(path[0], path[1]), amounts[0]);
         _swap(amounts, path, address(this));
         WOPKW(WETH).withdraw(amounts[amounts.length - 1]);
-        payable(to).transfer(amounts[amounts.length - 1]);
+        (bool ok, ) = payable(to).call{value: amounts[amounts.length - 1]}("");
+        require(ok, "ETH_FAIL");
     }
 }
